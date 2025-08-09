@@ -1,0 +1,15 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:15
+    container_name: starmarathon-pg
+    restart: always
+    environment:
+      POSTGRES_USER: star
+      POSTGRES_PASSWORD: star
+      POSTGRES_DB: star_db
+    ports: [ "5433:5432" ]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
