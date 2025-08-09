@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StarMarathon.Infrastructure\StarMarathon.Infrastructure.csproj" />
+    <ProjectReference Include="..\StarMarathon.Application\StarMarathon.Application.csproj" />
   </ItemGroup>
 
 </Project>

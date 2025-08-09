@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StarMarathon.Domain\StarMarathon.Domain.csproj" />
+    <ProjectReference Include="..\StarMarathon.Application\StarMarathon.Application.csproj" />
   </ItemGroup>
 
 </Project>

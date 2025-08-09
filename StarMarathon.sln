@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarMarathon.Infrastructure
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarMarathon.API", "src\StarMarathon.API\StarMarathon.API.csproj", "{7D2A1202-A102-43EE-B6CF-AEDC8D0BFED3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarMarathon.Application", "src\StarMarathon.Application\StarMarathon.Application.csproj", "{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,18 @@ Global
 		{7D2A1202-A102-43EE-B6CF-AEDC8D0BFED3}.Release|x64.Build.0 = Release|Any CPU
 		{7D2A1202-A102-43EE-B6CF-AEDC8D0BFED3}.Release|x86.ActiveCfg = Release|Any CPU
 		{7D2A1202-A102-43EE-B6CF-AEDC8D0BFED3}.Release|x86.Build.0 = Release|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Debug|x64.Build.0 = Debug|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Debug|x86.Build.0 = Debug|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Release|x64.ActiveCfg = Release|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Release|x64.Build.0 = Release|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Release|x86.ActiveCfg = Release|Any CPU
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -65,5 +79,6 @@ Global
 		{1A92443F-CEA1-43CC-87EB-D9859144E4D5} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3AA0148C-428A-4F6F-9077-E82497B3CAB9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{7D2A1202-A102-43EE-B6CF-AEDC8D0BFED3} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{F10D3624-6B0A-4E85-9663-CD1A11FC8A7F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
