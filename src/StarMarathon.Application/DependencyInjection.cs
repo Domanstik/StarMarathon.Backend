@@ -10,6 +10,9 @@ public static class DependencyInjection
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IProductService, ProductService>();
+
+        services.AddScoped<IAdminTaskService, AdminTaskService>();
+        services.AddScoped<IAdminProductService, AdminProductService>();
         return services;
     }
 }
