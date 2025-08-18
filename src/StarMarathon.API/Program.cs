@@ -1,4 +1,11 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
 using StarMarathon.Application;
 using StarMarathon.Application.Services;
 using StarMarathon.Application.DTOs.Admin;
@@ -6,49 +13,157 @@ using StarMarathon.Infrastructure;
 using StarMarathon.Domain.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// --- Services
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "StarMarathon API", Version = "v1" });
+    var jwtScheme = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Введите токен вида: Bearer {token}"
+    };
+    c.AddSecurityDefinition("Bearer", jwtScheme);
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        [jwtScheme] = Array.Empty<string>()
+    });
+});
+
+
+// --- AuthN/AuthZ
+var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("Jwt:Key missing");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "StarMarathon";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "StarMarathonClient";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
+    {
+        o.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+
+builder.Services.AddAuthorization(opts =>
+{
+    opts.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
+});
 
 var app = builder.Build();
+
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 
-// ensure db + seed ...
+// --- DB migrate + seed
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<StarDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
     if (!db.Employees.Any()) SeedDemo(db);
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 var api = app.MapGroup("/api");
 
-// ====== USER-FACING (как было) ======
-api.MapGet("/tasks", async (long tgId, ITaskService tasks, CancellationToken ct) =>
+// ------------ DEV AUTH (в проде замените на ваш gateway) -----------------
+api.MapPost("/auth/login", async (LoginRequest req, IConfiguration cfg, StarDbContext db) =>
 {
-    try { return Results.Ok(await tasks.GetAvailableAsync(tgId, ct)); }
-    catch (KeyNotFoundException) { return Results.NotFound("Employee not found"); }
-});
+    // auto-provision сотрудника (dev-упрощение)
+    var emp = await db.Employees.FirstOrDefaultAsync(e => e.TgId == req.TgId);
+    if (emp is null)
+    {
+        var lang = string.IsNullOrWhiteSpace(req.Language) ? "ru" : req.Language.Trim().ToLowerInvariant();
+        emp = new Employee(req.TgId, req.Phone ?? "+000", lang);
+        await db.Employees.AddAsync(emp);
+        await db.SaveChangesAsync();
+    }
 
-api.MapGet("/notifications", async (long tgId, INotificationService svc, CancellationToken ct) =>
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(cfg["Jwt:Key"]!));
+    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+    var expires = DateTime.UtcNow.AddMinutes(int.TryParse(cfg["Jwt:TokenLifetimeMinutes"], out var m) ? m : 120);
+
+    var role = string.Equals(req.Role, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Employee";
+
+    var claims = new[]
+    {
+        new Claim(JwtRegisteredClaimNames.Sub, req.TgId.ToString()),
+        new Claim("tg_id", req.TgId.ToString()),
+        new Claim(ClaimTypes.NameIdentifier, req.TgId.ToString()),
+        new Claim(ClaimTypes.Name, req.Username ?? $"tg_{req.TgId}"),
+        new Claim(ClaimTypes.Role, role)
+    };
+
+    var token = new JwtSecurityToken(
+        issuer: cfg["Jwt:Issuer"],
+        audience: cfg["Jwt:Audience"],
+        claims: claims,
+        notBefore: DateTime.UtcNow,
+        expires: expires,
+        signingCredentials: creds
+    );
+
+    var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+    return Results.Ok(new { token = jwt, expiresAt = expires });
+});
+// ------------------------------------------------------------------------
+
+// --------- Helpers
+static long? GetTgId(ClaimsPrincipal user)
 {
-    try { return Results.Ok(await svc.GetAsync(tgId, ct)); }
-    catch (KeyNotFoundException) { return Results.NotFound("Employee not found"); }
-});
+    var s = user.FindFirstValue("tg_id") ??
+            user.FindFirstValue(ClaimTypes.NameIdentifier) ??
+            user.FindFirstValue(JwtRegisteredClaimNames.Sub);
+    return long.TryParse(s, out var v) ? v : null;
+}
 
+// =================== USER-FACING (требует авторизации) ===================
+api.MapGet("/tasks", async (ITaskService tasks, ClaimsPrincipal user, CancellationToken ct) =>
+{
+    var tgId = GetTgId(user);
+    if (tgId is null) return Results.Unauthorized();
+    try { return Results.Ok(await tasks.GetAvailableAsync(tgId.Value, ct)); }
+    catch (KeyNotFoundException) { return Results.NotFound("Employee not found"); }
+}).RequireAuthorization();
+
+api.MapGet("/notifications", async (INotificationService svc, ClaimsPrincipal user, CancellationToken ct) =>
+{
+    var tgId = GetTgId(user);
+    if (tgId is null) return Results.Unauthorized();
+    try { return Results.Ok(await svc.GetAsync(tgId.Value, ct)); }
+    catch (KeyNotFoundException) { return Results.NotFound("Employee not found"); }
+}).RequireAuthorization();
+
+api.MapPost("/tasks/{id:guid}/complete", async (Guid id, ITaskService tasks, ClaimsPrincipal user, CancellationToken ct) =>
+{
+    var tgId = GetTgId(user);
+    if (tgId is null) return Results.Unauthorized();
+    try { await tasks.CompleteAsync(id, tgId.Value, ct); return Results.Ok(); }
+    catch (KeyNotFoundException) { return Results.NotFound("Employee not found"); }
+}).RequireAuthorization();
+
+// Магазин можно оставить публичным (или тоже закрыть)
 api.MapGet("/products", (IProductService svc, CancellationToken ct) => svc.GetAsync(ct));
 
-api.MapPost("/tasks/{id:guid}/complete", async (Guid id, long tgId, ITaskService tasks, CancellationToken ct) =>
-{
-    try { await tasks.CompleteAsync(id, tgId, ct); return Results.Ok(); }
-    catch (KeyNotFoundException) { return Results.NotFound("Employee not found"); }
-});
+// =================== ADMIN AREA (защищено ролью Admin) ===================
+var admin = app.MapGroup("/api/admin").RequireAuthorization("AdminOnly");
 
-// ====== ADMIN AREA (CRUD) ======
-var admin = app.MapGroup("/api/admin");
-
-// --- Tasks ---
 admin.MapGet("/tasks", async (IAdminTaskService svc, CancellationToken ct) =>
     Results.Ok(await svc.ListAsync(ct)));
 
@@ -76,7 +191,6 @@ admin.MapDelete("/tasks/{id:guid}", async (Guid id, IAdminTaskService svc, Cance
     catch (KeyNotFoundException) { return Results.NotFound("Task not found"); }
 });
 
-// --- Products ---
 admin.MapGet("/products", async (IAdminProductService svc, CancellationToken ct) =>
     Results.Ok(await svc.ListAsync(ct)));
 
@@ -106,7 +220,7 @@ admin.MapDelete("/products/{id:guid}", async (Guid id, IAdminProductService svc,
 
 app.Run();
 
-// Seed как раньше...
+// ===== seed =====
 static void SeedDemo(StarDbContext db)
 {
     var g = new Group("all", "Все");
@@ -121,3 +235,6 @@ static void SeedDemo(StarDbContext db)
     db.AddRange(g, e, t, p, new Notification(e.Id, "Добро пожаловать в StarMarathon!"));
     db.SaveChanges();
 }
+
+// ===== contracts =====
+public record LoginRequest(long TgId, string? Username, string? Phone, string? Role, string? Language);

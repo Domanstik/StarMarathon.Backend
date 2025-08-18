@@ -22,5 +22,17 @@ public sealed class StarDbContext : DbContext
         b.Entity<TaskGroup>().HasOne(g => g.Group).WithMany(g => g.TaskGroups).HasForeignKey(g => g.GroupId);
         b.Entity<EmployeeTaskStatus>().HasOne(s => s.Employee).WithMany(e => e.TaskStatuses).HasForeignKey(s => s.EmployeeId);
         b.Entity<EmployeeTaskStatus>().HasOne(s => s.Task).WithMany(t => t.EmployeeStatuses).HasForeignKey(s => s.TaskId);
+
+        b.Entity<Employee>().HasIndex(e => e.TgId).IsUnique();
+
+        b.Entity<TaskGroup>()
+          .HasOne(tg => tg.Task).WithMany(t => t.TaskGroups)
+          .HasForeignKey(tg => tg.TaskId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<EmployeeTaskStatus>()
+          .HasOne(s => s.Task).WithMany(t => t.EmployeeStatuses)
+          .HasForeignKey(s => s.TaskId)
+          .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -41,10 +41,7 @@ public sealed class AdminProductService : IAdminProductService
         Validate(req.Name, req.Description, req.Price, req.ImageUrl);
         var p = await _products.GetByIdAsync(id, ct) ?? throw new KeyNotFoundException("Product not found");
 
-        p.GetType().GetProperty(nameof(Product.Name))!.SetValue(p, req.Name);
-        p.GetType().GetProperty(nameof(Product.Description))!.SetValue(p, req.Description);
-        p.GetType().GetProperty(nameof(Product.Price))!.SetValue(p, req.Price);
-        p.GetType().GetProperty(nameof(Product.ImageUrl))!.SetValue(p, req.ImageUrl);
+        p.Update(req.Name, req.Description, req.Price, req.ImageUrl);
 
         await _uow.SaveChangesAsync(ct);
     }

@@ -59,31 +59,32 @@ public sealed class AdminTaskService : IAdminTaskService
 
         var entity = await _tasks.GetByIdAsync(id, ct) ?? throw new KeyNotFoundException("Task not found");
 
-        // обновление полей
-        // т.к. поля private set, проще вручную: создать новый и заменить? — оставим через рефлексию? нет.
-        // Сменим через "with" нельзя; поэтому напрямую присвоить через "редактор" методов в домене нет.
-        // Для краткости используем internal сеттеры через вспомогательные методы:
-        entity.GetType().GetProperty(nameof(DomainTask.Name))!.SetValue(entity, req.Name);
-        entity.GetType().GetProperty(nameof(DomainTask.Description))!.SetValue(entity, req.Description);
-        entity.GetType().GetProperty(nameof(DomainTask.Language))!.SetValue(entity, req.Language);
-        entity.GetType().GetProperty(nameof(DomainTask.WinningReward))!.SetValue(entity, req.WinningReward);
-        entity.GetType().GetProperty(nameof(DomainTask.ParticipationReward))!.SetValue(entity, req.ParticipationReward);
-        entity.GetType().GetProperty(nameof(DomainTask.End))!.SetValue(entity, req.End);
+        entity.Update(req.Name, req.Description, req.Language,
+                      req.WinningReward, req.ParticipationReward, req.End);
 
-        // группы: пересоберём привязки
         if (req.GroupCodes is not null)
         {
-            entity.TaskGroups.Clear();
-            if (req.GroupCodes.Count > 0)
-            {
-                var groups = await _groups.GetByCodesAsync(req.GroupCodes, ct);
-                var known = new HashSet<string>(groups.Select(g => g.Code));
-                foreach (var missing in req.GroupCodes.Where(c => !known.Contains(c)))
-                    groups.Add(await _groups.GetOrCreateAsync(missing, missing, ct));
+            var desiredCodes = req.GroupCodes
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Select(c => c.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
-                foreach (var g in groups)
+            var groups = await _groups.GetByCodesAsync(desiredCodes, ct);
+            var have = new HashSet<string>(groups.Select(g => g.Code), StringComparer.OrdinalIgnoreCase);
+            foreach (var code in desiredCodes)
+                if (!have.Contains(code))
+                    groups.Add(await _groups.GetOrCreateAsync(code, code, ct));
+
+            var desiredIds = groups.Select(g => g.Id).ToHashSet();
+
+            foreach (var tg in entity.TaskGroups.Where(tg => !desiredIds.Contains(tg.GroupId)).ToList())
+                entity.TaskGroups.Remove(tg);
+
+            var currentIds = entity.TaskGroups.Select(tg => tg.GroupId).ToHashSet();
+            foreach (var g in groups)
+                if (!currentIds.Contains(g.Id))
                     entity.TaskGroups.Add(new TaskGroup { TaskId = entity.Id, GroupId = g.Id });
-            }
         }
 
         await _uow.SaveChangesAsync(ct);
