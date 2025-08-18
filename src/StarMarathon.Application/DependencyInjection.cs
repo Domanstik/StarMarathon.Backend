@@ -13,6 +13,10 @@ public static class DependencyInjection
 
         services.AddScoped<IAdminTaskService, AdminTaskService>();
         services.AddScoped<IAdminProductService, AdminProductService>();
+
+        services.AddScoped<IUserParticipationService, UserParticipationService>();
+        services.AddScoped<IAdminParticipantService, AdminParticipantService>();
+
         return services;
     }
 }

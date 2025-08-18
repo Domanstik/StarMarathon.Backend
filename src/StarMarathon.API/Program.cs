@@ -2,7 +2,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -216,6 +215,22 @@ admin.MapDelete("/products/{id:guid}", async (Guid id, IAdminProductService svc,
 {
     try { await svc.DeleteAsync(id, ct); return Results.NoContent(); }
     catch (KeyNotFoundException) { return Results.NotFound("Product not found"); }
+});
+
+api.MapPost("/tasks/{id:guid}/participate", async (Guid id, ClaimsPrincipal user,
+    IUserParticipationService svc, CancellationToken ct) =>
+{
+    var tgId = GetTgId(user);
+    if (tgId is null) return Results.Unauthorized();
+    try { await svc.JoinAsync(tgId.Value, id, ct); return Results.Ok(); }
+    catch (KeyNotFoundException ex) { return Results.NotFound(ex.Message); }
+}).RequireAuthorization();
+
+admin.MapGet("/tasks/{id:guid}/participants", async (Guid id,
+    IAdminParticipantService svc, CancellationToken ct) =>
+{
+    try { return Results.Ok(await svc.GetAsync(id, ct)); }
+    catch (KeyNotFoundException) { return Results.NotFound("Task not found"); }
 });
 
 app.Run();

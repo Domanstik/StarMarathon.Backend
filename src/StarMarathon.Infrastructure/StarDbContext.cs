@@ -11,6 +11,8 @@ public sealed class StarDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Product> Products => Set<Product>();
     public StarDbContext(DbContextOptions<StarDbContext> opts) : base(opts) { }
+    public DbSet<TaskParticipant> TaskParticipants => Set<TaskParticipant>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<EmployeeGroup>().HasKey(x => new { x.EmployeeId, x.GroupId });
@@ -34,5 +36,15 @@ public sealed class StarDbContext : DbContext
           .HasOne(s => s.Task).WithMany(t => t.EmployeeStatuses)
           .HasForeignKey(s => s.TaskId)
           .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<TaskParticipant>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Task).WithMany().HasForeignKey(x => x.TaskId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.TaskId, x.EmployeeId }).IsUnique();
+        });
+
+
     }
 }
